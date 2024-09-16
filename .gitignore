@@ -2,3 +2,4 @@
 *.pyc
 .DS_STORE
 venv
+*.mp4

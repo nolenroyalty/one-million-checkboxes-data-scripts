@@ -296,7 +296,7 @@ def timelapse_command(args):
     def percent_progress(time):
         since_start = time.timestamp() - start_seconds
         percent = since_start / total_seconds
-        return f"{percent: 5.01%}"
+        return f"{percent: 7.02%}"
 
     state = None
     prev_era = None
