@@ -1,7 +1,7 @@
 # Scripts for working with data from One Million Checkboxes
 _This data is licensed under the Creative Commons BY-SA (CC-BY-SA) license. See LICENSE for more details._
 
-This repo contains code for generating images and timelapses from the data for [One Million Checkboxes](https://en.wikipedia.org/wiki/One_Million_Checkboxes).
+This repo contains code for generating images and timelapses from the data for [One Million Checkboxes](https://en.wikipedia.org/wiki/One_Million_Checkboxes). [A separate download](https://archive.org/details/one-million-checkboxes-data) contains the (large!) dataset that these tools are designed to work with.
 
 Some of those timelapses look like this:
 
@@ -21,7 +21,7 @@ Additionally, users wrote secret messages in binary (visible by converting OMCB'
 So in addition to letting you visualize which boxes were checked over time, the timelapse tool lets you see the images that users drew.
 
 ## Where do I get the data?
-The data is hosted on the Internet Archive. You can download it [here](TODO).
+The data is hosted on the Internet Archive. You can download it [here](https://archive.org/details/one-million-checkboxes-data).
 
 ## Once I've downloaded the data what should I do with it?
 Extract the data to a directory named `omcb-data`. Then place it in the same parent directory as this repository. Things should automatically work.
@@ -34,7 +34,7 @@ That means that your directory layout should look like this:
 Alternatively, you can manually specify the path to the data directory with the `--data-directory` argument
 
 ## How do I use this code?
-If you want to manually inspect the data, just look in the `omcb-data` directory.
+First, download the data (again, the link is [here](https://archive.org/details/one-million-checkboxes-data)). If you want to look at it manually, just extract the archive and poke around.
 
 To get set up with the scripts:
 1. Install python3 if you don't have it installed
@@ -65,7 +65,7 @@ And
 Will generate a timelapse from 2024-07-04T00:30:00 to 2024-07-05T00:30:00, with a frame every 30 seconds.
 
 ## Data description and caveats
-This archive is missing data from the first several hours after OMCB was launched. I (the creator of the site) am sorry about that! I was originally only keeping the first 1 million logs over the course of the day under the assumption that anything beyond that would indicate a bug. I failed to anticipate the popularity of the site!
+[The archive](https://archive.org/details/one-million-checkboxes-data) is missing data from the first several hours after OMCB was launched. I (the creator of the site) am sorry about that! I was originally only keeping the first 1 million logs over the course of the day under the assumption that anything beyond that would indicate a bug. I failed to anticipate the popularity of the site!
 
 The data is also split into 3 different "eras"
 
