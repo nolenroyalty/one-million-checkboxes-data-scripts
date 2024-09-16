@@ -3,6 +3,11 @@ _This data is licensed under the Creative Commons BY-SA (CC-BY-SA) license. See 
 
 This repo contains code for generating images and timelapses from the data for [One Million Checkboxes](https://en.wikipedia.org/wiki/One_Million_Checkboxes).
 
+Some of those timelapses look like this:
+
+![rick2](https://github.com/user-attachments/assets/f63ee150-d863-462b-a094-e9a64c01e63e)
+
+
 ## What was One Million Checkboxes?
 One Million Checkboxes (OMCB) was a website released on June 26, 2024 that had a million checkboxes on it. The checkboxes were global - checking or unchecking a box checked or unchecked it for everyone on the site.
 
