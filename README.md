@@ -40,17 +40,21 @@ To get set up with the scripts:
 6. Run `python main.py` with the relevant command
 
 To generate a timelapse, run
+
 `python main.py timelapse START_DATE NUMBER_OF_HOURS -o VIDEOFILE.mp4 -i NUMBER_OF_SECONDS_PER_FRAME`
 
 Or if you'd rather manually specify the end date
+
 `python main.py timelapse START_DATE END_DATE -o VIDEOFILE.mp4 -i NUMBER_OF_SECONDS_PER_FRAME`
 
 For example
+
 `python ./main.py timelapse 2024-07-11T16:30:01Z 0.5h -o example.mp4 -i 5`
 
 Will generate a 30 minute timelapse named `example.mp4` starting at 2024-07-11T16:30:01, with a frame every 5 seconds
 
 And 
+
 `python ./main.py timelapse 2024-07-04T00:30:00Z 2024-07-05T00:30:00Z -o example.mp4 -i 30`
 
 Will generate a timelapse from 2024-07-04T00:30:00 to 2024-07-05T00:30:00, with a frame every 30 seconds.
