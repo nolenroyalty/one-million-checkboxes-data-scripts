@@ -1,2 +1,57 @@
-# one-million-checkboxes-data-scripts
-Scripts for working with One Million Checkboxes data
+# Scripts for working with data from One Million Checkboxes
+_This data is licensed under the Creative Commons BY-SA (CC-BY-SA) license. See LICENSE for more details._
+
+This repo contains code for generating images and timelapses from the data for [One Million Checkboxes](https://en.wikipedia.org/wiki/One_Million_Checkboxes).
+
+## What was One Million Checkboxes?
+One Million Checkboxes (OMCB) was a website released on June 26, 2024 that had a million checkboxes on it. The checkboxes were global - checking or unchecking a box checked or unchecked it for everyone on the site.
+
+The site was live for 2 weeks. In those two weeks, hundreds of thousands of players checked or unchecked more than 650,000,000 checkboxes.
+
+## Why a timelapse tool?
+As documented [here](https://eieio.games/essays/the-secret-in-one-million-checkboxes/), within a few days of launch users began to hide images and links in the state of OMCB. Most images were drawn on a monochrome hypothetical 1000x1000 canvas where unchecked boxes were treated as black and checked boxes were treated as white.
+
+Additionally, users wrote secret messages in binary (visible by converting OMCB's binary state to ascii) and base64 (viewable when fetching the data on the site, since data was transported in base64).
+
+So in addition to letting you visualize which boxes were checked over time, the timelapse tool lets you see the images that users drew.
+
+## Where do I get the data?
+The data is hosted on the Internet Archive. You can download it [here](TODO).
+
+## Once I've downloaded the data what should I do with it?
+Extract the data. Then place it in the same parent directory as this repository. Things should automatically work.
+
+That means that your directory layout should look like this:
+* `parent-dir`
+* `parent-dir/this-repo`
+* `parent-dir/data`
+
+Alternatively, you can manually specify the path to the data directory with the `--data-directory` argument
+
+## How do I use this code?
+If you want to manually inspect the data, just look in the `data` directory.
+
+To get set up with the scripts:
+1. Install python3 if you don't have it installed
+2. Move to the scripts directory
+3. Create a python virtual environment (probably you should run `python3 -m venv venv` but this may depend on your python installation and operating system)
+4. Source the environment that you created (`source venv/bin/activate`)
+5. Install dependencies (`pip install -r requirements.txt`)
+6. Run `python main.py` with the relevant command
+
+To generate a timelapse, run
+`python main.py timelapse START_DATE NUMBER_OF_HOURS -o VIDEOFILE.mp4 -i NUMBER_OF_SECONDS_PER_FRAME`
+
+Or if you'd rather manually specify the end date
+`python main.py timelapse START_DATE END_DATE -o VIDEOFILE.mp4 -i NUMBER_OF_SECONDS_PER_FRAME`
+
+For example
+`python ./main.py timelapse 2024-07-11T16:30:01Z 0.5h -o example.mp4 -i 5`
+
+Will generate a 30 minute timelapse named `example.mp4` starting at 2024-07-11T16:30:01, with a frame every 5 seconds
+
+And 
+`python ./main.py timelapse 2024-07-04T00:30:00Z 2024-07-05T00:30:00Z -o example.mp4 -i 30`
+
+Will generate a timelapse from 2024-07-04T00:30:00 to 2024-07-05T00:30:00, with a frame every 30 seconds.
+
