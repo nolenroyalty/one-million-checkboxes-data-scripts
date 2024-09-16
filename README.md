@@ -19,17 +19,17 @@ So in addition to letting you visualize which boxes were checked over time, the 
 The data is hosted on the Internet Archive. You can download it [here](TODO).
 
 ## Once I've downloaded the data what should I do with it?
-Extract the data. Then place it in the same parent directory as this repository. Things should automatically work.
+Extract the data to a directory named `omcb-data`. Then place it in the same parent directory as this repository. Things should automatically work.
 
 That means that your directory layout should look like this:
 * `parent-dir`
 * `parent-dir/this-repo`
-* `parent-dir/data`
+* `parent-dir/omcb-data`
 
 Alternatively, you can manually specify the path to the data directory with the `--data-directory` argument
 
 ## How do I use this code?
-If you want to manually inspect the data, just look in the `data` directory.
+If you want to manually inspect the data, just look in the `omcb-data` directory.
 
 To get set up with the scripts:
 1. Install python3 if you don't have it installed
@@ -70,6 +70,6 @@ The data is also split into 3 different "eras"
 
 We split the data into eras to know which initial state value to load (the timelapse tool works by loading some state and then playing logs over it to compute the state at a moment in time). If you're working with the data outside of the tool be careful to account for these eras.
 
-Data is located in subdirectories of the `data` directory; each subdirectory uses one of the era names above. Those era directories contain `.log` files with all of the check events for a given day. There are also "snapshot" files that contain binary blobs of the state at different moments in time. `initial.db` represents the state at the start of the era, `final.db` represents the state at the end of the era, and the dated `.db` files represent the state at the start of that day. The provided tooling automatically references these files.
+Data is located in subdirectories of the `omcb-data` directory; each subdirectory uses one of the era names above. Those era directories contain `.log` files with all of the check events for a given day. There are also "snapshot" files that contain binary blobs of the state at different moments in time. `initial.db` represents the state at the start of the era, `final.db` represents the state at the end of the era, and the dated `.db` files represent the state at the start of that day. The provided tooling automatically references these files.
 
 `.log` files are pipe (|) separated ascii text files. The format is `TIME|BOX_NUMBER|CHECK_OR_UNCHECK` - e.g. `2024-06-26T19:00:40|75|1` means that box 75 was checked (1) on 2024-06-26T19:00:40, and `2024-06-26T19:00:43|3242|0` means that box 3242 was unchecked (0) at 2024-06-26T19:00:43. Times are in UTC.

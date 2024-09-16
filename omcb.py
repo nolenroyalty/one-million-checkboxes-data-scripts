@@ -71,7 +71,7 @@ def prepend_data_path(name, era, provided_data_path=None):
     basedir = provided_data_path
     if basedir is None:
         basedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-        basedir = os.path.join(basedir, "data")
+        basedir = os.path.join(basedir, "omcb-data")
     
     era_dir = os.path.join(basedir, era)
     return os.path.join(era_dir, name)
@@ -399,12 +399,12 @@ def main():
 
     state_at_time = subparsers.add_parser("state-at-time", help="Get state at a given time")
     state_at_time.add_argument("datetime", type=parse_datetime, help="Datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
-    state_at_time.add_argument("--data-directory", required=False, help="Path to directory where OMCB data is, if it's not in the standard location (default - a directory named 'data' that is a sibling of the 'scripts' dir that this script lives in")
+    state_at_time.add_argument("--data-directory", required=False, help="Path to directory where OMCB data is, if it's not in the standard location (default - a directory named 'omcb-data' that is a sibling of the 'scripts' dir that this script lives in")
     state_at_time.add_argument("-o", "--output", help="Output filename")
     state_at_time.set_defaults(func=state_at_time_command)
 
     image_at_time = subparsers.add_parser("image-at-time", help="Get an image at a given time (requires ffmpeg)")
-    image_at_time.add_argument("--data-directory", required=False, help="Path to directory where OMCB data is, if it's not in the standard location (default - a directory named 'data' that is a sibling of the 'scripts' dir that this script lives in")
+    image_at_time.add_argument("--data-directory", required=False, help="Path to directory where OMCB data is, if it's not in the standard location (default - a directory named 'omcb-data' that is a sibling of the 'scripts' dir that this script lives in")
     image_at_time.add_argument("datetime", type=parse_datetime, help="Datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
     image_at_time.add_argument("-o", "--output", help="Output filename")
     image_at_time.set_defaults(func=image_at_time_command)
@@ -412,7 +412,7 @@ def main():
     timelapse = subparsers.add_parser("timelapse", help="Create an image timelapse for a timerange (requires ffmpeg)")
     timelapse.add_argument("start_time", type=parse_datetime, help="Start datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
     timelapse.add_argument("end", type=parse_datetime_or_span, help="End - either a timespan in hours, or a datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
-    timelapse.add_argument("--data-directory", required=False, help="Path to directory where OMCB data is, if it's not in the standard location (default - a directory named 'data' that is a sibling of the 'scripts' dir that this script lives in")
+    timelapse.add_argument("--data-directory", required=False, help="Path to directory where OMCB data is, if it's not in the standard location (default - a directory named 'omcb-data' that is a sibling of the 'scripts' dir that this script lives in")
     timelapse.add_argument("-o", "--output", required=True, help="Output filename")
     timelapse.add_argument("-n", "--snapshot-every-n-checks", type=int, required=False, default=None, help="Create a snapshot for every n checks. Can be combined with -i (will snapshot whenever either happens)")
     timelapse.add_argument("-i", "--snapshot-every-i-seconds", type=int, required=False, default=DefaultValue(5), help="Create a snapshot every i seconds. Can be combined with -n (will snapshot whenever either happens)")
