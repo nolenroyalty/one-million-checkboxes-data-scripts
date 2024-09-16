@@ -90,7 +90,7 @@ def get_snapshot_name_for_date(date, era=None, data_path=None):
 
 def get_log_name_for_date(date, era=None, data_path=None):
     era = era if era is not None else get_era_for_date(date)
-    name = f"logs-cleaned-full.{date.year}-{date.month:02}-{date.day:02}.txt"
+    name = f"logs.{date.year}-{date.month:02}-{date.day:02}.txt"
     return prepend_data_path(name, era, provided_data_path=data_path)
 
 def apply_line_to_state(state, line, after=None, before=None):
@@ -173,11 +173,12 @@ def image_of_state(state, outfile):
             input=state.tobytes())
 
 def video_of_images(directory, outfile, framerate=30):
+    img_path = os.path.join(directory, "img-*.png")
     res = subprocess.run(
             ["ffmpeg",
             "-framerate", str(framerate),
             "-pattern_type", "glob",
-            "-i", f"{directory}/img-*.png",
+            "-i", img_path,
             "-pix_fmt", "gray",
             "-video_size", "1000x1000",
             "-c:v", "libx264",
@@ -305,7 +306,8 @@ def timelapse_command(args):
             nonlocal image_count
             image_count += 1
             print(f"Creating image number {image_count: 9} | {description}")
-            return f"{tmpdirname}/img-{image_count:09}.png"
+            img_name = f"img-{image_count:09}.png"
+            return os.path.join(tmpdirname, img_name)
 
         print(f"writing data to {tmpdirname}")
         for date in dates:
