@@ -313,6 +313,7 @@ def timelapse_command(args):
         for date in dates:
             era = get_era_for_date(date)
             if era != prev_era:
+                prev_era = era
                 # We have new snapshots for each era, most relevant for sunsetting because
                 # I wiped the whole grid - need to be careful to load the new snapshot
                 # and we also want to reset our "last snapshot time" so that our timelapse
