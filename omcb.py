@@ -7,6 +7,9 @@ import os
 import sys
 import bitarray
 import tempfile
+from PIL import Image, ImageDraw
+import numpy as np
+
 dt = datetime.datetime
 
 class DefaultValue(int):
@@ -113,6 +116,24 @@ def apply_line_to_state(state, line, after=None, before=None):
 
     return (state, date, "continue")
 
+def apply_line_to_state_heatmap(state, line, after=None, before=None):
+    line = line.strip()
+    date, cell, value = line.split("|")
+
+    date += "Z"
+    date = isodate(date)
+    cell = int(cell)
+
+    if after is not None and date < after: return (state, date, "before-first")
+    if before is not None and date > before: return (state, date, "past-last")
+    
+    if value == "1":
+        state[int(cell)] = 1
+    elif value == "0":
+        state[int(cell)] = 0
+
+    return (state, date, "continue")
+
 def apply_logs_to_state(state, log_name, cutoff_date):
     with open(log_name, "r") as f:
         for i, line in enumerate(f):
@@ -129,6 +150,20 @@ def state_of_snapshot(snapshot):
     with open(snapshot, "rb") as f:
         state.frombytes(f.read(125000))
     return state
+
+def blank_int_snapshot():
+    state = [0] * 1000000
+    return state
+
+def add_to_snapshot(new, old, diff):
+    #uncomment to replace state with snapshot (also change state in args)
+    #with open(snapshot, "rb") as f:
+    #    state = [int(d) for d in str(bin(int.from_bytes(f.read(125000), byteorder="big")).lstrip('0b'))]
+    #    if len(state) < 1000000:
+    #        state = ([0] * (1000000 - len(state))) + state
+    for idx, bit in enumerate(new):
+        if old[idx] != new[idx]: diff[idx] += 1
+    return diff
 
 def state_at_time_command(args):
     date = args.datetime
@@ -171,6 +206,20 @@ def image_of_state(state, outfile):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             input=state.tobytes())
+
+def image_of_heatmap(state, outfile):
+    arr = np.array(state)
+    max_val = np.max(arr)
+    img = Image.new('RGB', (1000, 1000))
+    draw = ImageDraw.Draw(img)
+    for i in range(1000):
+        for j in range(1000):
+            # Calculate the pixel color based on the integer value
+            r = int((arr[(i*1000) + j] / max_val) * 255)
+            g = int((arr[(i*1000) + j] / max_val) * 255)
+            b = int((arr[(i*1000) + j] / max_val) * 255)
+            draw.point((j, i), fill=(r, g, b))
+    img.save(outfile)
 
 def video_of_images(directory, outfile, framerate=30):
     img_path = os.path.join(directory, "img-*.png")
@@ -349,6 +398,94 @@ def timelapse_command(args):
         video_of_images(tmpdirname, outfile)
         print(f"created {outfile}")
 
+def heatmap_command(args):
+    check_ffmpeg()
+    start = args.start_time
+    end_function = args.end
+    outfile = args.output
+    data_path = args.data_directory
+
+    end, was_relative = end_function(start)
+
+    if was_relative:
+        print(f"Spanning {start} to {end}")
+
+    validate_start_and_end_dates(start, end)
+    timelapse_strategy = TimelapseStrategy(args.snapshot_every_n_checks, args.snapshot_every_i_seconds)
+
+    dates = date_range(start, end)
+    image_count = 0
+    start_string = start.strftime("%m/%d %H:%M:%S")
+    end_string = end.strftime("%m/%d %H:%M:%S")
+    start_seconds = start.timestamp()
+    end_seconds = end.timestamp()
+    total_seconds = end_seconds - start_seconds
+
+    def percent_progress(time):
+        since_start = time.timestamp() - start_seconds
+        percent = since_start / total_seconds
+        return f"{percent: 7.02%}"
+
+    state = None
+    prev_era = None
+    tmpdirname = "./"
+    def generate_img_name(description):
+        nonlocal image_count
+        image_count += 1
+        print(f"Creating image number {image_count: 9} | {description}")
+        img_name = f"img-{image_count:09}.png"
+        return os.path.join(tmpdirname, img_name)
+
+    print(f"writing data to {tmpdirname}")
+    diff = blank_int_snapshot()
+    try:
+        snapshot = get_snapshot_name_for_date(dates[0], data_path=data_path)
+        old = state_of_snapshot(snapshot) # initialize first diff to no value
+    except:
+        raise ValueError("Should have at least two states for heatmap mode")
+    for date in dates:
+        era = get_era_for_date(date)
+        if era != prev_era:
+            # We have new snapshots for each era, most relevant for sunsetting because
+            # I wiped the whole grid - need to be careful to load the new snapshot
+            # and we also want to reset our "last snapshot time" so that our timelapse
+            # doesn't have a bunch of dead time during downtime between eras
+            print(f"begin {era} {date}")
+            timelapse_strategy.reset_date_for_new_era()
+            snapshot = get_snapshot_name_for_date(date, data_path=data_path)
+            state = state_of_snapshot(snapshot)
+            diff = add_to_snapshot(state, old, diff)
+            old = state
+        if state is None:
+            snapshot = get_snapshot_name_for_date(date, data_path=data_path)
+            state = state_of_snapshot(snapshot)
+            diff = add_to_snapshot(state, old, diff)
+            old = state
+        log_name = get_log_name_for_date(date, data_path=data_path)
+        with open(log_name, "r") as f:
+                for line in f:
+                    state, date, status = apply_line_to_state_heatmap(state, line, after=start, before=end)
+                    if status == "before-first":
+                        continue
+                    elif status == "past-last":
+                        break
+                    elif status == "continue":
+                        dont_increment_count = False
+                        while timelapse_strategy.should_snapshot_line(date, dont_increment_count):
+                            current_string = date.strftime("%m/%d %H:%M:%S")
+                            progress = percent_progress(date)
+                            description = f"{progress} ({start_string} | {current_string} | {end_string})"
+                            print(description)
+                            state = state_of_snapshot(snapshot)
+                            diff = add_to_snapshot(state, old, diff)
+                            old = state
+                            dont_increment_count = True
+                    else:
+                        raise Exception(f"unrecognized status {status}")
+    image_name = generate_img_name("FINAL IMAGE")
+    image_of_heatmap(diff, image_name)
+    print("heatmap at", image_name)
+
 def image_at_time_command(args):
     check_ffmpeg()
     date = args.datetime
@@ -417,6 +554,14 @@ def main():
     timelapse.add_argument("-n", "--snapshot-every-n-checks", type=int, required=False, default=None, help="Create a snapshot for every n checks. Can be combined with -i (will snapshot whenever either happens)")
     timelapse.add_argument("-i", "--snapshot-every-i-seconds", type=int, required=False, default=DefaultValue(5), help="Create a snapshot every i seconds. Can be combined with -n (will snapshot whenever either happens)")
     timelapse.set_defaults(func=timelapse_command)
+    
+    heatmap = subparsers.add_parser("heatmap", help="Create an image heatmap for a timerange (requires ffmpeg)")
+    heatmap.add_argument("start_time", type=parse_datetime, help="Start datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
+    heatmap.add_argument("end", type=parse_datetime_or_span, help="End - either a timespan in hours, or a datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
+    heatmap.add_argument("--data-directory", required=False, help="Path to directory where OMCB data is, if it's not in the standard location (default - a directory named 'omcb-data' that is a sibling of the 'scripts' dir that this script lives in")
+    heatmap.add_argument("-n", "--snapshot-every-n-checks", type=int, required=False, default=None, help="Create a snapshot for every n checks. Can be combined with -i (will snapshot whenever either happens)")
+    heatmap.add_argument("-i", "--snapshot-every-i-seconds", type=int, required=False, default=DefaultValue(5), help="Create a snapshot every i seconds. Can be combined with -n (will snapshot whenever either happens)")
+    heatmap.set_defaults(func=heatmap_command)
 
     args = parser.parse_args()
     if hasattr(args, "func"):
