@@ -180,7 +180,7 @@ def state_at_time_command(args):
     apply_logs_to_state(state, log_name, date)
 
     with open(outfile, "wb") as f:
-        f.write(data.tobytes())
+        f.write(state.tobytes())
 
 def check_ffmpeg():
     """
@@ -364,6 +364,7 @@ def timelapse_command(args):
         for date in dates:
             era = get_era_for_date(date)
             if era != prev_era:
+                prev_era = era
                 # We have new snapshots for each era, most relevant for sunsetting because
                 # I wiped the whole grid - need to be careful to load the new snapshot
                 # and we also want to reset our "last snapshot time" so that our timelapse

@@ -67,6 +67,8 @@ Will generate a timelapse from 2024-07-04T00:30:00 to 2024-07-05T00:30:00, with 
 ## Data description and caveats
 [The archive](https://archive.org/details/one-million-checkboxes-data) is missing data from the first several hours after OMCB was launched. I (the creator of the site) am sorry about that! I was originally only keeping the first 1 million logs over the course of the day under the assumption that anything beyond that would indicate a bug. I failed to anticipate the popularity of the site!
 
+I also lost some data every time the site crashed or I bounced a server. So it's definitely incomplete (and it's hard to quantify exactly how incomplete), but hopefully good enough in practice. You may see redundant checks, and the "final" version of the data doesn't end with every box checked due to lost data. Sorry.
+
 The data is also split into 3 different "eras"
 
 1. `pre-crash`: The first day of the site, from when we begin having data to a major crash about 20 hours after the site went live. The site was down for several hours and I had to manually reconstruct some of its state.
@@ -78,3 +80,4 @@ We split the data into eras to know which initial state value to load (the timel
 Data is located in subdirectories of the `omcb-data` directory; each subdirectory uses one of the era names above. Those era directories contain `.log` files with all of the check events for a given day. There are also "snapshot" files that contain binary blobs of the state at different moments in time. `initial.db` represents the state at the start of the era, `final.db` represents the state at the end of the era, and the dated `.db` files represent the state at the start of that day. The provided tooling automatically references these files.
 
 `.log` files are pipe (|) separated ascii text files. The format is `TIME|BOX_NUMBER|CHECK_OR_UNCHECK` - e.g. `2024-06-26T19:00:40|75|1` means that box 75 was checked (1) on 2024-06-26T19:00:40, and `2024-06-26T19:00:43|3242|0` means that box 3242 was unchecked (0) at 2024-06-26T19:00:43. Times are in UTC.
+
