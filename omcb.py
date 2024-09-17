@@ -398,7 +398,6 @@ def timelapse_command(args):
         print(f"created {outfile}")
 
 def heatmap_command(args):
-    check_ffmpeg()
     start = args.start_time
     end_function = args.end
     outfile = args.output
@@ -480,7 +479,6 @@ def heatmap_command(args):
     print("heatmap at", outfile)
 
 def image_at_time_command(args):
-    check_ffmpeg()
     date = args.datetime
     outfile = args.output
     data_path = args.data_directory
@@ -548,7 +546,7 @@ def main():
     timelapse.add_argument("-i", "--snapshot-every-i-seconds", type=int, required=False, default=DefaultValue(5), help="Create a snapshot every i seconds. Can be combined with -n (will snapshot whenever either happens)")
     timelapse.set_defaults(func=timelapse_command)
     
-    heatmap = subparsers.add_parser("heatmap", help="Create an image heatmap for a timerange (requires ffmpeg)")
+    heatmap = subparsers.add_parser("heatmap", help="Create an image heatmap for a timerange")
     heatmap.add_argument("start_time", type=parse_datetime, help="Start datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
     heatmap.add_argument("end", type=parse_datetime_or_span, help="End - either a timespan in hours, or a datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
     heatmap.add_argument("--data-directory", required=False, help="Path to directory where OMCB data is, if it's not in the standard location (default - a directory named 'omcb-data' that is a sibling of the 'scripts' dir that this script lives in")
