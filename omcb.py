@@ -9,6 +9,7 @@ import bitarray
 import tempfile
 from PIL import Image, ImageDraw
 import numpy as np
+from math import log
 
 dt = datetime.datetime
 
@@ -207,7 +208,7 @@ def image_of_state(state, outfile):
             stderr=subprocess.DEVNULL,
             input=state.tobytes())
 
-def image_of_heatmap(state, outfile):
+def image_of_heatmap(state, outfile, logarithmic):
     arr = np.array(state)
     max_val = np.max(arr)
     img = Image.new('RGB', (1000, 1000))
@@ -215,9 +216,10 @@ def image_of_heatmap(state, outfile):
     for i in range(1000):
         for j in range(1000):
             # Calculate the pixel color based on the integer value
-            r = int((arr[(i*1000) + j] / max_val) * 255)
-            g = int((arr[(i*1000) + j] / max_val) * 255)
-            b = int((arr[(i*1000) + j] / max_val) * 255)
+            color = log(((arr[(i*1000) + j] / max_val)*0.9)+0.1)+1 if logarithmic else (arr[(i*1000) + j] / max_val)
+            r = int(color * 255)
+            g = int(color * 255)
+            b = int(color * 255)
             draw.point((j, i), fill=(r, g, b))
     img.save(outfile)
 
@@ -482,9 +484,8 @@ def heatmap_command(args):
                             dont_increment_count = True
                     else:
                         raise Exception(f"unrecognized status {status}")
-    image_name = generate_img_name("FINAL IMAGE")
-    image_of_heatmap(diff, image_name)
-    print("heatmap at", image_name)
+    image_of_heatmap(diff, outfile, args.logarithmic)
+    print("heatmap at", outfile)
 
 def image_at_time_command(args):
     check_ffmpeg()
@@ -560,7 +561,9 @@ def main():
     heatmap.add_argument("end", type=parse_datetime_or_span, help="End - either a timespan in hours, or a datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
     heatmap.add_argument("--data-directory", required=False, help="Path to directory where OMCB data is, if it's not in the standard location (default - a directory named 'omcb-data' that is a sibling of the 'scripts' dir that this script lives in")
     heatmap.add_argument("-n", "--snapshot-every-n-checks", type=int, required=False, default=None, help="Create a snapshot for every n checks. Can be combined with -i (will snapshot whenever either happens)")
+    heatmap.add_argument("-o", "--output", required=True, help="Output filename. Should be pillow compatible")
     heatmap.add_argument("-i", "--snapshot-every-i-seconds", type=int, required=False, default=DefaultValue(5), help="Create a snapshot every i seconds. Can be combined with -n (will snapshot whenever either happens)")
+    heatmap.add_argument("-l", "--logarithmic", type=bool, required=False, default=False, help="Whether to use logarithmic scaling for the heatmap (defaults to true)")
     heatmap.set_defaults(func=heatmap_command)
 
     args = parser.parse_args()
