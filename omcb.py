@@ -196,17 +196,8 @@ def check_ffmpeg():
         raise RuntimeError("FFmpeg is installed but not working correctly.")
 
 def image_of_state(state, outfile):
-    subprocess.run(
-            ["ffmpeg", 
-             "-f", "rawvideo", 
-             "-pix_fmt", "monob", 
-             "-video_size", "1000x1000", 
-             "-i", 
-             "-",
-             "-y", outfile], 
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            input=state.tobytes())
+    img = Image.frombytes("1", (1000, 1000), state.tobytes())
+    img.save(outfile)
 
 def image_of_heatmap(state, outfile, logarithmic):
     arr = np.array(state)
