@@ -144,7 +144,7 @@ def state_at_time_command(args):
     apply_logs_to_state(state, log_name, date)
 
     with open(outfile, "wb") as f:
-        f.write(data.tobytes())
+        f.write(state.tobytes())
 
 def check_ffmpeg():
     """
