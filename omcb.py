@@ -9,7 +9,7 @@ import bitarray
 import tempfile
 from PIL import Image, ImageDraw
 import numpy as np
-from math import log
+from math import log as log_func
 
 dt = datetime.datetime
 
@@ -210,17 +210,21 @@ def image_of_state(state, outfile):
 
 def image_of_heatmap(state, outfile, logarithmic):
     arr = np.array(state)
-    max_val = np.max(arr)
+    max_val = int(np.max(arr))
     img = Image.new('RGB', (1000, 1000))
     draw = ImageDraw.Draw(img)
     for i in range(1000):
+        print("Converting to image: " + str(round((i/1000)*100, 0)) + "%", end="\r")
         for j in range(1000):
-            # Calculate the pixel color based on the integer value
-            color = log(((arr[(i*1000) + j] / max_val)*0.9)+0.1)+1 if logarithmic else (arr[(i*1000) + j] / max_val)
-            r = int(color * 255)
-            g = int(color * 255)
-            b = int(color * 255)
-            draw.point((j, i), fill=(r, g, b))
+            color = (arr[(i*1000) + j] / max_val)
+            init = int(color * 255)
+            for x in range(logarithmic):
+                color = log_func((color*0.9 + 0.1), 10) + 1
+            if color > 1:
+                print(init, color)
+            color = int(color * 255)
+            draw.point((j, i), fill=(color, color, color))
+    print()
     img.save(outfile)
 
 def video_of_images(directory, outfile, framerate=30):
@@ -356,7 +360,7 @@ def timelapse_command(args):
         def generate_img_name(description):
             nonlocal image_count
             image_count += 1
-            print(f"Creating image number {image_count: 9} | {description}")
+            print(f"\33[2K\rCreating image number {image_count: 9} | {description}", end="")
             img_name = f"img-{image_count:09}.png"
             return os.path.join(tmpdirname, img_name)
 
@@ -369,7 +373,7 @@ def timelapse_command(args):
                 # I wiped the whole grid - need to be careful to load the new snapshot
                 # and we also want to reset our "last snapshot time" so that our timelapse
                 # doesn't have a bunch of dead time during downtime between eras
-                print(f"begin {era} {date}")
+                print(f"\nbegin {era} {date}")
                 timelapse_strategy.reset_date_for_new_era()
                 snapshot = get_snapshot_name_for_date(date, data_path=data_path)
                 state = state_of_snapshot(snapshot)
@@ -397,6 +401,7 @@ def timelapse_command(args):
                         raise Exception(f"unrecognized status {status}")
 
         image_of_state(state, generate_img_name("FINAL IMAGE"))
+        print()
         print("creating video...")
         video_of_images(tmpdirname, outfile)
         print(f"created {outfile}")
@@ -432,12 +437,6 @@ def heatmap_command(args):
     state = None
     prev_era = None
     tmpdirname = "./"
-    def generate_img_name(description):
-        nonlocal image_count
-        image_count += 1
-        print(f"Creating image number {image_count: 9} | {description}")
-        img_name = f"img-{image_count:09}.png"
-        return os.path.join(tmpdirname, img_name)
 
     print(f"writing data to {tmpdirname}")
     diff = blank_int_snapshot()
@@ -453,7 +452,7 @@ def heatmap_command(args):
             # I wiped the whole grid - need to be careful to load the new snapshot
             # and we also want to reset our "last snapshot time" so that our timelapse
             # doesn't have a bunch of dead time during downtime between eras
-            print(f"begin {era} {date}")
+            print(f"\nbegin {era} {date}")
             timelapse_strategy.reset_date_for_new_era()
             snapshot = get_snapshot_name_for_date(date, data_path=data_path)
             state = state_of_snapshot(snapshot)
@@ -478,13 +477,14 @@ def heatmap_command(args):
                             current_string = date.strftime("%m/%d %H:%M:%S")
                             progress = percent_progress(date)
                             description = f"{progress} ({start_string} | {current_string} | {end_string})"
-                            print(description)
+                            print("\33[2K\r" + description, end="")
                             state = state_of_snapshot(snapshot)
                             diff = add_to_snapshot(state, old, diff)
                             old = state
                             dont_increment_count = True
                     else:
                         raise Exception(f"unrecognized status {status}")
+    print()
     image_of_heatmap(diff, outfile, args.logarithmic)
     print("heatmap at", outfile)
 
@@ -564,7 +564,7 @@ def main():
     heatmap.add_argument("-n", "--snapshot-every-n-checks", type=int, required=False, default=None, help="Create a snapshot for every n checks. Can be combined with -i (will snapshot whenever either happens)")
     heatmap.add_argument("-o", "--output", required=True, help="Output filename. Should be pillow compatible")
     heatmap.add_argument("-i", "--snapshot-every-i-seconds", type=int, required=False, default=DefaultValue(5), help="Create a snapshot every i seconds. Can be combined with -n (will snapshot whenever either happens)")
-    heatmap.add_argument("-l", "--logarithmic", type=bool, required=False, default=False, help="Whether to use logarithmic scaling for the heatmap (defaults to true)")
+    heatmap.add_argument("-l", "--logarithmic", type=int, required=False, default=0, help="Scale of logarithmic function (0 for linear, defaults to 0. Negative values become 0)")
     heatmap.set_defaults(func=heatmap_command)
 
     args = parser.parse_args()
