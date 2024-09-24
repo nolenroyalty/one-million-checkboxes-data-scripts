@@ -117,23 +117,19 @@ def apply_line_to_state(state, line, after=None, before=None):
 
     return (state, date, "continue")
 
-def apply_line_to_state_heatmap(state, line, after=None, before=None):
+def process_heatmap_line(line, after=None, before=None):
     line = line.strip()
     date, cell, value = line.split("|")
 
     date += "Z"
     date = isodate(date)
     cell = int(cell)
+    value = int(value)
 
-    if after is not None and date < after: return (state, date, "before-first")
-    if before is not None and date > before: return (state, date, "past-last")
-    
-    if value == "1":
-        state[int(cell)] = 1
-    elif value == "0":
-        state[int(cell)] = 0
+    if after is not None and date < after: return (cell, value, date, "before-first")
+    if before is not None and date > before: return (cell, value, date, "past-last")
 
-    return (state, date, "continue")
+    return (cell, value, date, "continue")
 
 def apply_logs_to_state(state, log_name, cutoff_date):
     with open(log_name, "r") as f:
@@ -153,18 +149,11 @@ def state_of_snapshot(snapshot):
     return state
 
 def blank_int_snapshot():
-    state = [0] * 1000000
-    return state
+    return [[None, 0] for _ in  range(1000000)]
 
-def add_to_snapshot(new, old, diff):
-    #uncomment to replace state with snapshot (also change state in args)
-    #with open(snapshot, "rb") as f:
-    #    state = [int(d) for d in str(bin(int.from_bytes(f.read(125000), byteorder="big")).lstrip('0b'))]
-    #    if len(state) < 1000000:
-    #        state = ([0] * (1000000 - len(state))) + state
-    for idx, bit in enumerate(new):
-        if old[idx] != new[idx]: diff[idx] += 1
-    return diff
+def initialize_diff_from_state(diff, state):
+    for idx, bit in enumerate(state):
+        diff[idx][0] = bit
 
 def state_at_time_command(args):
     date = args.datetime
@@ -199,7 +188,8 @@ def image_of_state(state, outfile):
     img = Image.frombytes("1", (1000, 1000), state.tobytes())
     img.save(outfile)
 
-def image_of_heatmap(state, outfile, logarithmic):
+def image_of_heatmap(diff, outfile, logarithmic):
+    state = [x[1] for x in diff] 
     arr = np.array(state)
     max_val = int(np.max(arr))
     img = Image.new('RGB', (1000, 1000))
@@ -402,15 +392,12 @@ def heatmap_command(args):
     end_function = args.end
     outfile = args.output
     data_path = args.data_directory
-
     end, was_relative = end_function(start)
 
     if was_relative:
         print(f"Spanning {start} to {end}")
 
     validate_start_and_end_dates(start, end)
-    timelapse_strategy = TimelapseStrategy(args.snapshot_every_n_checks, args.snapshot_every_i_seconds)
-
     dates = date_range(start, end)
     image_count = 0
     start_string = start.strftime("%m/%d %H:%M:%S")
@@ -426,9 +413,7 @@ def heatmap_command(args):
 
     state = None
     prev_era = None
-    tmpdirname = "./"
 
-    print(f"writing data to {tmpdirname}")
     diff = blank_int_snapshot()
     try:
         snapshot = get_snapshot_name_for_date(dates[0], data_path=data_path)
@@ -438,40 +423,35 @@ def heatmap_command(args):
     for date in dates:
         era = get_era_for_date(date)
         if era != prev_era:
-            # We have new snapshots for each era, most relevant for sunsetting because
-            # I wiped the whole grid - need to be careful to load the new snapshot
-            # and we also want to reset our "last snapshot time" so that our timelapse
-            # doesn't have a bunch of dead time during downtime between eras
+            # I'm not clear on how we should handle updating the heatmap when we transition between
+            # eras. For the sunset era, the heatmap probably shouldn't reflect that the grid was wiped?
+            # For the post-crash era, maybe it should reflect the changes that we saw, but it probably
+            # doesn't matter too much since it's a single value
             print(f"\nbegin {era} {date}")
-            timelapse_strategy.reset_date_for_new_era()
             snapshot = get_snapshot_name_for_date(date, data_path=data_path)
             state = state_of_snapshot(snapshot)
-            diff = add_to_snapshot(state, old, diff)
-            old = state
+            initialize_diff_from_state(diff, state)
         if state is None:
             snapshot = get_snapshot_name_for_date(date, data_path=data_path)
             state = state_of_snapshot(snapshot)
-            diff = add_to_snapshot(state, old, diff)
-            old = state
+            initialize_diff_from_state(diff, state)
         log_name = get_log_name_for_date(date, data_path=data_path)
         with open(log_name, "r") as f:
                 for line in f:
-                    state, date, status = apply_line_to_state_heatmap(state, line, after=start, before=end)
+                    cell, value, date, status = process_heatmap_line(line, after=start, before=end)
                     if status == "before-first":
                         continue
                     elif status == "past-last":
                         break
                     elif status == "continue":
-                        dont_increment_count = False
-                        while timelapse_strategy.should_snapshot_line(date, dont_increment_count):
-                            current_string = date.strftime("%m/%d %H:%M:%S")
-                            progress = percent_progress(date)
-                            description = f"{progress} ({start_string} | {current_string} | {end_string})"
-                            print("\33[2K\r" + description, end="")
-                            state = state_of_snapshot(snapshot)
-                            diff = add_to_snapshot(state, old, diff)
-                            old = state
-                            dont_increment_count = True
+                        current_string = date.strftime("%m/%d %H:%M:%S")
+                        progress = percent_progress(date)
+                        description = f"{progress} ({start_string} | {current_string} | {end_string})"
+                        print("\33[2K\r" + description, end="")
+                        current_value = diff[cell][0]
+                        if current_value != value:
+                            diff[cell][0] = value
+                            diff[cell][1] += 1
                     else:
                         raise Exception(f"unrecognized status {status}")
     print()
@@ -550,9 +530,7 @@ def main():
     heatmap.add_argument("start_time", type=parse_datetime, help="Start datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
     heatmap.add_argument("end", type=parse_datetime_or_span, help="End - either a timespan in hours, or a datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
     heatmap.add_argument("--data-directory", required=False, help="Path to directory where OMCB data is, if it's not in the standard location (default - a directory named 'omcb-data' that is a sibling of the 'scripts' dir that this script lives in")
-    heatmap.add_argument("-n", "--snapshot-every-n-checks", type=int, required=False, default=None, help="Create a snapshot for every n checks. Can be combined with -i (will snapshot whenever either happens)")
     heatmap.add_argument("-o", "--output", required=True, help="Output filename. Should be pillow compatible")
-    heatmap.add_argument("-i", "--snapshot-every-i-seconds", type=int, required=False, default=DefaultValue(5), help="Create a snapshot every i seconds. Can be combined with -n (will snapshot whenever either happens)")
     heatmap.add_argument("-l", "--logarithmic", type=int, required=False, default=0, help="Scale of logarithmic function (0 for linear, defaults to 0. Negative values become 0)")
     heatmap.set_defaults(func=heatmap_command)
 
