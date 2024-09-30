@@ -1,1 +1,3 @@
 bitarray==2.9.2
+pillow
+numpy

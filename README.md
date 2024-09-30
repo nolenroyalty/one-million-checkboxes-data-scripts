@@ -1,7 +1,7 @@
 # Scripts for working with data from One Million Checkboxes
 _This data is licensed under the Creative Commons BY-SA (CC-BY-SA) license. See LICENSE for more details._
 
-This repo contains code for generating images and timelapses from the data for [One Million Checkboxes](https://en.wikipedia.org/wiki/One_Million_Checkboxes). [A separate download](https://archive.org/details/one-million-checkboxes-data) contains the (large!) dataset that these tools are designed to work with.
+This repo contains code for generating images, timelapses, and heatmaps from the data for [One Million Checkboxes](https://en.wikipedia.org/wiki/One_Million_Checkboxes). [A separate download](https://archive.org/details/one-million-checkboxes-data) contains the (large!) dataset that these tools are designed to work with.
 
 Some of those timelapses look like this:
 
@@ -44,6 +44,8 @@ To get set up with the scripts:
 5. Install dependencies (`pip install -r requirements.txt`)
 6. Run `python omcb.py` with the relevant command
 
+### Timelapse
+
 To generate a timelapse, run
 
 `python omcb.py timelapse START_DATE NUMBER_OF_HOURS -o VIDEOFILE.mp4 -i NUMBER_OF_SECONDS_PER_FRAME`
@@ -63,6 +65,18 @@ And
 `python ./omcb.py timelapse 2024-07-04T00:30:00Z 2024-07-05T00:30:00Z -o example.mp4 -i 30`
 
 Will generate a timelapse from 2024-07-04T00:30:00 to 2024-07-05T00:30:00, with a frame every 30 seconds.
+
+### Heatmap
+
+To generate a heatmap, run
+
+`python omcb.py timelapse START_DATE NUMBER_OF_HOURS -o IMAGEFILE.png -i NUMBER_OF_SECONDS_PER_DIFF_SAMPLE -l LOGARITHMIC_SCALE`
+
+For example
+
+`python ./omcb.py heatmap 2024-07-04T00:30:00Z 2024-07-05T00:30:00Z -o example.png -i 5`
+
+Will generate a heatmap for 2024-07-04T00:30:00 to 2024-07-05T00:30:00, with a difference sampled every 5 seconds.
 
 ## Data description and caveats
 [The archive](https://archive.org/details/one-million-checkboxes-data) is missing data from the first several hours after OMCB was launched. I (the creator of the site) am sorry about that! I was originally only keeping the first 1 million logs over the course of the day under the assumption that anything beyond that would indicate a bug. I failed to anticipate the popularity of the site!
