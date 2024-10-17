@@ -5,12 +5,11 @@ import subprocess
 import datetime
 import os
 import sys
+import time
 import bitarray
 import tempfile
 from PIL import Image, ImageDraw
 import numpy as np
-from math import log as log_func
-
 dt = datetime.datetime
 
 class DefaultValue(int):
@@ -149,11 +148,12 @@ def state_of_snapshot(snapshot):
     return state
 
 def blank_int_snapshot():
-    return [[None, 0] for _ in  range(1000000)]
+    return np.zeros((1000000, 2))
 
 def initialize_diff_from_state(diff, state):
     for idx, bit in enumerate(state):
         diff[idx][0] = bit
+    return diff
 
 def state_at_time_command(args):
     date = args.datetime
@@ -188,39 +188,29 @@ def image_of_state(state, outfile):
     img = Image.frombytes("1", (1000, 1000), state.tobytes())
     img.save(outfile)
 
-def image_of_heatmap(diff, outfile, logarithmic):
-    state = [x[1] for x in diff] 
-    arr = np.array(state)
-    max_val = int(np.max(arr))
-    img = Image.new('RGB', (1000, 1000))
-    draw = ImageDraw.Draw(img)
-    for i in range(1000):
-        print("Converting to image: " + str(round((i/1000)*100, 0)) + "%", end="\r")
-        for j in range(1000):
-            color = (arr[(i*1000) + j] / max_val)
-            init = int(color * 255)
-            for x in range(logarithmic):
-                color = log_func((color*0.9 + 0.1), 10) + 1
-            if color > 1:
-                print(init, color)
-            color = int(color * 255)
-            draw.point((j, i), fill=(color, color, color))
-    print()
+def image_of_heatmap(diff, outfile, scale):
+    #state = [x[1] for x in diff] 
+    # do the above using insane numpy logic because it's faster
+    arr = np.ravel(np.split(np.array(diff), [1], axis=1)[1]).astype(np.float32) 
+    max_val = int(np.max(arr)) if int(np.max(arr)) >= 1 else 1
+    np.divide(arr, max_val, out=arr)
+    np.pow(arr, 1/scale, out=arr)
+    np.multiply(arr, 256, out=arr)
+    img = Image.fromarray(arr.reshape((1000, 1000)).astype(np.uint8), "L")
     img.save(outfile)
 
-def video_of_images(directory, outfile, framerate=30):
-    img_path = os.path.join(directory, "img-*.png")
+def video_of_images(directory, outfile, framerate=30, gray=True):
+    img_path = os.path.join(directory, "img-%d.png")
     res = subprocess.run(
-            ["ffmpeg",
+            " ".join(["ffmpeg",
             "-framerate", str(framerate),
-            "-pattern_type", "glob",
             "-i", img_path,
-            "-pix_fmt", "gray",
+            "-pix_fmt", "gray" if gray else "yuv420p",
             "-video_size", "1000x1000",
             "-c:v", "libx264",
-            "-y", outfile],
+            "-y", outfile]),
             capture_output=True,
-            text=True)
+            text=True, shell=True)
 
 def date_range(start, end):
     cur = start
@@ -342,7 +332,7 @@ def timelapse_command(args):
             nonlocal image_count
             image_count += 1
             print(f"\33[2K\rCreating image number {image_count: 9} | {description}", end="")
-            img_name = f"img-{image_count:09}.png"
+            img_name = f"img-{image_count}.png"
             return os.path.join(tmpdirname, img_name)
 
         print(f"writing data to {tmpdirname}")
@@ -364,7 +354,10 @@ def timelapse_command(args):
                 state = state_of_snapshot(snapshot)
             log_name = get_log_name_for_date(date, data_path=data_path)
             with open(log_name, "r") as f:
-                for line in f:
+                ctime = time.perf_counter()
+                lps = 0
+                cidx = 0
+                for idx, line in enumerate(f):
                     state, date, status = apply_line_to_state(state, line, after=start, before=end)
                     if status == "before-first":
                         continue
@@ -375,7 +368,13 @@ def timelapse_command(args):
                         while timelapse_strategy.should_snapshot_line(date, dont_increment_count):
                             current_string = date.strftime("%m/%d %H:%M:%S")
                             progress = percent_progress(date)
-                            description = f"{progress} ({start_string} | {current_string} | {end_string})"
+                            time_diff = time.perf_counter() - ctime
+                            if time_diff > 0.5:
+                                lps = (idx - cidx) / time_diff
+                                lps = round(lps)
+                                ctime = time.perf_counter()
+                                cidx = idx
+                            description = f"{progress} ({start_string} | {current_string} | {end_string} | {lps} lps)"
                             image_of_state(state, generate_img_name(description))
                             dont_increment_count = True
                     else:
@@ -384,7 +383,7 @@ def timelapse_command(args):
         image_of_state(state, generate_img_name("FINAL IMAGE"))
         print()
         print("creating video...")
-        video_of_images(tmpdirname, outfile)
+        video_of_images(tmpdirname, outfile, 30, True)
         print(f"created {outfile}")
 
 def heatmap_command(args):
@@ -398,6 +397,8 @@ def heatmap_command(args):
         print(f"Spanning {start} to {end}")
 
     validate_start_and_end_dates(start, end)
+    if args.lapse:
+        timelapse_strategy = TimelapseStrategy(args.snapshot_every_n_checks, args.snapshot_every_i_seconds)
     dates = date_range(start, end)
     image_count = 0
     start_string = start.strftime("%m/%d %H:%M:%S")
@@ -417,27 +418,38 @@ def heatmap_command(args):
     diff = blank_int_snapshot()
     try:
         snapshot = get_snapshot_name_for_date(dates[0], data_path=data_path)
-        old = state_of_snapshot(snapshot) # initialize first diff to no value
+        old = state_of_snapshot(snapshot) # initialize first diff to no value so the first state doesn't add to the diff
     except:
         raise ValueError("Should have at least two states for heatmap mode")
-    for date in dates:
-        era = get_era_for_date(date)
-        if era != prev_era:
-            # I'm not clear on how we should handle updating the heatmap when we transition between
-            # eras. For the sunset era, the heatmap probably shouldn't reflect that the grid was wiped?
-            # For the post-crash era, maybe it should reflect the changes that we saw, but it probably
-            # doesn't matter too much since it's a single value
-            print(f"\nbegin {era} {date}")
-            snapshot = get_snapshot_name_for_date(date, data_path=data_path)
-            state = state_of_snapshot(snapshot)
-            initialize_diff_from_state(diff, state)
-        if state is None:
-            snapshot = get_snapshot_name_for_date(date, data_path=data_path)
-            state = state_of_snapshot(snapshot)
-            initialize_diff_from_state(diff, state)
-        log_name = get_log_name_for_date(date, data_path=data_path)
-        with open(log_name, "r") as f:
-                for line in f:
+    with tempfile.TemporaryDirectory() as tmpdirname: # Only needed for lapse. Couldn't figure out a good conditional without duplicating or moving the function, so it's like this
+        def generate_img_name():
+            nonlocal image_count
+            image_count += 1
+            img_name = f"img-{image_count}.png"
+            return os.path.join(tmpdirname, img_name)
+
+        print(f"writing data to {tmpdirname}")
+        for date in dates:
+            era = get_era_for_date(date)
+            if era != prev_era:
+                # I'm not clear on how we should handle updating the heatmap when we transition between
+                # eras. For the sunset era, the heatmap probably shouldn't reflect that the grid was wiped?
+                # For the post-crash era, maybe it should reflect the changes that we saw, but it probably
+                # doesn't matter too much since it's a single value
+                print(f"\nbegin {era} {date}")
+                snapshot = get_snapshot_name_for_date(date, data_path=data_path)
+                state = state_of_snapshot(snapshot)
+                diff = initialize_diff_from_state(diff, state)
+            if state is None:
+                snapshot = get_snapshot_name_for_date(date, data_path=data_path)
+                state = state_of_snapshot(snapshot)
+                diff = initialize_diff_from_state(diff, state)
+            log_name = get_log_name_for_date(date, data_path=data_path)
+            with open(log_name, "r") as f:
+                ctime = time.perf_counter()
+                lps = 0
+                cidx = 0
+                for idx, line in enumerate(f):
                     cell, value, date, status = process_heatmap_line(line, after=start, before=end)
                     if status == "before-first":
                         continue
@@ -446,17 +458,33 @@ def heatmap_command(args):
                     elif status == "continue":
                         current_string = date.strftime("%m/%d %H:%M:%S")
                         progress = percent_progress(date)
-                        description = f"{progress} ({start_string} | {current_string} | {end_string})"
+                        time_diff = time.perf_counter() - ctime
+                        if time_diff > 0.5:
+                            lps = (idx - cidx) / time_diff
+                            lps = round(lps)
+                            ctime = time.perf_counter()
+                            cidx = idx
+                        description = f"{progress} ({start_string} | {current_string} | {end_string} | {lps} lps)"
+                        if args.lapse:
+                            dont_increment_count = False
+                            while timelapse_strategy.should_snapshot_line(date, dont_increment_count):
+                                current_string = date.strftime("%m/%d %H:%M:%S")
+                                image_of_heatmap(diff, generate_img_name(), args.power if args.power >= 1 else 1)
+                                dont_increment_count = True
+                                if args.cumulative != 0 and not idx % args.cumulative:
+                                    diff = blank_int_snapshot()
                         print("\33[2K\r" + description, end="")
-                        current_value = diff[cell][0]
-                        if current_value != value:
+                        if diff[cell][0] != value:
                             diff[cell][0] = value
                             diff[cell][1] += 1
                     else:
                         raise Exception(f"unrecognized status {status}")
-    print()
-    image_of_heatmap(diff, outfile, args.logarithmic)
-    print("heatmap at", outfile)
+        print()
+        if args.lapse:
+            video_of_images(tmpdirname, outfile, 30, False)
+        else:
+            image_of_heatmap(diff, outfile, args.power if args.power >= 1 else 1)
+        print("heatmap at", outfile)
 
 def image_at_time_command(args):
     date = args.datetime
@@ -531,7 +559,11 @@ def main():
     heatmap.add_argument("end", type=parse_datetime_or_span, help="End - either a timespan in hours, or a datetime in ISO format (YYYY-MM-DDTHH:MM:SS)")
     heatmap.add_argument("--data-directory", required=False, help="Path to directory where OMCB data is, if it's not in the standard location (default - a directory named 'omcb-data' that is a sibling of the 'scripts' dir that this script lives in")
     heatmap.add_argument("-o", "--output", required=True, help="Output filename. Should be pillow compatible")
-    heatmap.add_argument("-l", "--logarithmic", type=int, required=False, default=0, help="Scale of logarithmic function (0 for linear, defaults to 0. Negative values become 0)")
+    heatmap.add_argument("-p", "--power", type=int, required=False, default=1, help="Scale of the power function (1 for linear, defaults to 1. Values less than 1 become 1)")
+    heatmap.add_argument("--lapse", action="store_true", required=False)
+    heatmap.add_argument("-n", "--snapshot-every-n-checks", type=int, required=False, default=None, help="Only applies when --lapse is enabled. Create a snapshot for every n checks. Can be combined with -i (will snapshot whenever either happens)")
+    heatmap.add_argument("-i", "--snapshot-every-i-seconds", type=int, required=False, default=DefaultValue(5), help="Only applies when --lapse is enabled. Create a snapshot for every i seconds. Can be combined with -n (will snapshot whenever either happens)")
+    heatmap.add_argument("-c", "--cumulative", type=int, required=False, default=DefaultValue(0), help="Only applies when --lapse is enabled. Deletes the diff snapshot after n frames")
     heatmap.set_defaults(func=heatmap_command)
 
     args = parser.parse_args()
